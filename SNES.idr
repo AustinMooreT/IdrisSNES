@@ -4,12 +4,12 @@ import Data.Vect
 -- TODO finish formulating cpu details
 record Cpu where
        constructor MkCpu
-       RegisterA   : Bits 8
-       RegisterB   : Bits 8
-       RegisterX   : Bits 16
-       RegisterY   : Bits 16
-       
-
+       registerA   : Bits 8
+       registerB   : Bits 8
+       registerXHi : Bits 8
+       registerXLo : Bits 8
+       registerYHi : Bits 8
+       registerYLo : Bits 8
 
 -- TODO come up with a way to model address space.
 record AddressSpace where
@@ -28,8 +28,10 @@ record Instruction (length : Nat) where
        addressSpaceAction : AddressSpace -> AddressSpace
 
 
+InvarianceProof : Type -> Type -> Type -> Type
+InvarianceProof a b c = (t1 : a) -> (t2 : b) -> (act : (a -> b -> b)) -> (prp : (b -> c)) -> (prp (act t1 t2) = (prp t2))
 
 -- TODO figure out how to assemble instructions into binary
 -- Assemblable Instruction (length : Nat) where
 --            assemble instr = (opcode instr)
-
+ 
