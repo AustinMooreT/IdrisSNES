@@ -1,18 +1,42 @@
 import Data.Bits
 import Data.Vect
 
+abelianLength : Bits (n + m) -> Bits (m + n)
+abelianLength bs = nbs
+              where
+              bsInt : Integer
+              bsInt = bitsToInt bs
+              nbs   : Bits (m + n)
+              nbs   = intToBits bsInt
 
+concatBits : (n : Nat) -> (m : Nat ) -> Bits n -> Bits m -> Bits (n + m)
+concatBits n m bh bl = or bhnew blnew
+           where
+           blnew : Bits (n + m)
+           blnew = abelianLength $ zeroExtend bl
+           shift : Bits (n + m)
+           shift = abelianLength $ MkBits $ natToBits m
+           bhext : Bits (n + m)
+           bhext = zeroExtend bh
+           bhnew : Bits (n + m)
+           bhnew = shiftLeft bhext shift
 
 -- TODO finish formulating cpu details
-data ArithmeticMode = Binary | Decimal
-data Width = Sixteen | ThirtyTwo
-data CpuMode : Type where
-     EmulationMode : ArithmeticMode -> CpuMode
-     StandardMode  : ArithmeticMode -> Width -> Width -> CpuMode
+data FlagState = Set | Reset
+record CpuStatus where
+       constructor MkCpuStatus
+       carryFlag      : FlagState
+       zeroFlag       : FlagState
+       interruptFlag  : FlagState
+       decimalFlag    : FlagState
+       indexBreakFlag : FlagState
+       accumMemFlag   : FlagState
+       overFlowFlag   : FlagState
+       negativeFlag   : FlagState
+       emulationFlag  : FlagState
 
 record Cpu where
        constructor MkCpu
-       cpuMode     : CpuMode
        registerA   : Bits 8
        registerB   : Bits 8
        registerXHi : Bits 8
@@ -29,28 +53,28 @@ record Cpu where
 -- Template MkCpu (registerA c) (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c)
 
 defaultCpu : Cpu
-defaultCpu = MkCpu (EmulationMode Binary) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0)
+defaultCpu = MkCpu (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0)
 
 setRegisterA : Bits 8 -> Cpu -> Cpu
-setRegisterA d c = MkCpu (cpuMode c) d (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterA d c = MkCpu d (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 setRegisterB : Bits 8 -> Cpu -> Cpu
-setRegisterB d c = MkCpu (cpuMode c) (registerA c) d (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterB d c = MkCpu (registerA c) d (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 setRegisterXHi : Bits 8 -> Cpu -> Cpu
-setRegisterXHi d c = MkCpu (cpuMode c) (registerA c) (registerB c) d (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterXHi d c = MkCpu (registerA c) (registerB c) d (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 setRegisterXLo : Bits 8 -> Cpu -> Cpu
-setRegisterXLo d c = MkCpu (cpuMode c) (registerA c) (registerB c) (registerXHi c) d (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterXLo d c = MkCpu (registerA c) (registerB c) (registerXHi c) d (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 setRegisterYHi : Bits 8 -> Cpu -> Cpu
-setRegisterYHi d c = MkCpu (cpuMode c) (registerA c) (registerB c) (registerXHi c) (registerXLo c) d (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterYHi d c = MkCpu (registerA c) (registerB c) (registerXHi c) (registerXLo c) d (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 setRegisterYLo : Bits 8 -> Cpu -> Cpu
-setRegisterYLo d c = MkCpu (cpuMode c) (registerA c) (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) d (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
+setRegisterYLo d c = MkCpu (registerA c) (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) d (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 registerC : Cpu -> Bits 16
---TODO implement registerC
+registerC cpu = concatBits 8 8 (registerA cpu) (registerB cpu)
 
 setRegisterC : Bits16 -> Cpu -> Cpu
 --TODO implement setRegisterC
@@ -67,18 +91,31 @@ registerY : Cpu -> Bits 16
 setRegisterY : Bits16 -> Cpu -> Cpu
 --TODO implement setRegisterY
 
+data AddressModifier = NoneModifiedAddress | CpuModifiedAddress | PpuModifiedAddress
 
-tmp1 : Bits 4
-tmp1 = (intToBits 2)
+-- NOTE I'm not sure how well I like the design I'm currently going with, but we will see how it works out.
+data AddressSpace : Type where
+     EmptySpace      : AddressSpace
+     SetAddressValue : AddressModifier -> Bits 24 -> Bits 8 -> AddressSpace -> AddressSpace
 
-tmp2 : String
-tmp2 = (bitsToStr tmp1)
+shedAddressSpaceLayer : AddressSpace -> (AddressModifier, Bits 24, Bits 8, AddressSpace)
+shedAddressSpaceLayer EmptySpace = (NoneModifiedAddress, intToBits 0, intToBits 0, EmptySpace)
+shedAddressSpaceLayer (SetAddressValue am ad d as) = (am, ad, d, as)
 
--- TODO come up with a way to model address space.
-record AddressSpace where
-       constructor MkAddressSpace
-       foo : Bits 8
-
+getAddressHistory : Bits 24 -> AddressSpace -> List (Bits 8, AddressModifier)
+getAddressHistory bs EmptySpace = []
+getAddressHistory bs adr = hstr ++ getAddressHistory bs adrn
+             where
+              adrs : Bits 24
+              adrs = fst (snd (shedAddressSpaceLayer adr))
+              dta  : Bits 8
+              dta  = fst (snd (snd (shedAddressSpaceLayer adr)))
+              mod  : AddressModifier
+              mod  = fst (shedAddressSpaceLayer adr)
+              adrn : AddressSpace
+              adrn = snd (snd (snd (shedAddressSpaceLayer adr)))
+              hstr : List (Bits 8, AddressModifier)
+              hstr = if adrs == bs then [(dta, mod)] else []
 
 interface Assemblable a (n : Nat) where
           assemble : a -> Bits n
