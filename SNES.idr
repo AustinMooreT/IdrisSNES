@@ -1,39 +1,78 @@
 import Data.Bits
 import Data.Vect
 
-abelianLength : Bits (n + m) -> Bits (m + n)
-abelianLength bs = nbs
-              where
-              bsInt : Integer
-              bsInt = bitsToInt bs
-              nbs   : Bits (m + n)
-              nbs   = intToBits bsInt
+-- | BEGIN Bits Utilities
+   -- utilities not provided by Data.Bits
 
-concatBits : (n : Nat) -> (m : Nat ) -> Bits n -> Bits m -> Bits (n + m)
-concatBits n m bh bl = or bhnew blnew
+commuteLength : {n : Nat} -> {m : Nat} -> Bits (n + m) -> Bits (m + n)
+commuteLength {n} {m} bs = replace commuteProof bs
+              where
+              commuteProof : n + m = m + n
+              commuteProof = plusCommutative n m
+
+concatBits : {n : Nat} -> {m : Nat} -> Bits n -> Bits m -> Bits (n + m)
+concatBits {n} {m} bh bl = or bhnew blnew
            where
            blnew : Bits (n + m)
-           blnew = abelianLength $ zeroExtend bl
+           blnew = commuteLength $ zeroExtend bl
            shift : Bits (n + m)
-           shift = abelianLength $ MkBits $ natToBits m
+           shift = commuteLength $ MkBits $ natToBits m
            bhext : Bits (n + m)
            bhext = zeroExtend bh
            bhnew : Bits (n + m)
            bhnew = shiftLeft bhext shift
 
+-- TODO clean this up.
+getLowByte : Bits 16 -> Bits 8
+getLowByte bs = nnbs 8
+           where
+           bsInt  : Integer
+           bsInt  = bitsToInt bs
+           nbs    : (m : Nat) -> Bits (m + 8)
+           nbs m  = intToBits bsInt
+           nnbs   : Nat -> Bits 8
+           nnbs m = truncate (nbs m)
+
+getHighByte : Bits 16 -> Bits 8
+getHighByte bs = getLowByte $ shiftRightLogical bs (intToBits 8)
+
+-- | END Bits Utilities
+
 -- TODO finish formulating cpu details
-data FlagState = Set | Reset
 record CpuStatus where
        constructor MkCpuStatus
-       carryFlag      : FlagState
-       zeroFlag       : FlagState
-       interruptFlag  : FlagState
-       decimalFlag    : FlagState
-       indexBreakFlag : FlagState
-       accumMemFlag   : FlagState
-       overFlowFlag   : FlagState
-       negativeFlag   : FlagState
-       emulationFlag  : FlagState
+       carryFlag      : Bits 1
+       zeroFlag       : Bits 1
+       interruptFlag  : Bits 1
+       decimalFlag    : Bits 1
+       indexBreakFlag : Bits 1
+       accumMemFlag   : Bits 1
+       overFlowFlag   : Bits 1
+       negativeFlag   : Bits 1
+       emulationFlag  : Bits 1
+
+zBits : (n : Nat) -> Bits n
+zBits n = intToBits 0
+
+zBits1 : Bits 1
+zBits1 = zBits 1
+
+zBits8 : Bits 8
+zBits8 = zBits 8
+
+zStatus : CpuStatus
+zStatus = MkCpuStatus zBits1 zBits1 zBits1 zBits1 zBits1 zBits1 zBits1 zBits1 zBits1
+
+cpuStatusToByte : CpuStatus -> Bits 8
+cpuStatusToByte cpus = concatBits (negativeFlag   cpus) (
+                       concatBits (overFlowFlag   cpus) (
+                       concatBits (accumMemFlag   cpus) (
+                       concatBits (indexBreakFlag cpus) (
+                       concatBits (decimalFlag    cpus) (
+                       concatBits (interruptFlag  cpus) (
+                       concatBits (zeroFlag       cpus) (
+                       carryFlag cpus)))))))
+
 
 record Cpu where
        constructor MkCpu
@@ -52,8 +91,8 @@ record Cpu where
 
 -- Template MkCpu (registerA c) (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c)
 
-defaultCpu : Cpu
-defaultCpu = MkCpu (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0) (intToBits 0)
+zCpu : Cpu
+zCpu = MkCpu zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8 zBits8
 
 setRegisterA : Bits 8 -> Cpu -> Cpu
 setRegisterA d c = MkCpu d (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) (registerYLo c) (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
@@ -74,22 +113,22 @@ setRegisterYLo : Bits 8 -> Cpu -> Cpu
 setRegisterYLo d c = MkCpu (registerA c) (registerB c) (registerXHi c) (registerXLo c) (registerYHi c) d (registerDHi c) (registerDLo c) (registerSHi c) (registerSLo c) (registerPHi c) (registerPLo c)
 
 registerC : Cpu -> Bits 16
-registerC cpu = concatBits 8 8 (registerA cpu) (registerB cpu)
+registerC cpu = concatBits (registerA cpu) (registerB cpu)
 
-setRegisterC : Bits16 -> Cpu -> Cpu
---TODO implement setRegisterC
+setRegisterC : Bits 16 -> Cpu -> Cpu
+setRegisterC bs cpu = setRegisterA (getHighByte bs) $ setRegisterB (getLowByte bs) cpu
 
 registerX : Cpu -> Bits 16
---TODO implement registerX
+registerX cpu = concatBits (registerXHi cpu) (registerXLo cpu)
 
 setRegisterX : Bits 16 -> Cpu -> Cpu
---TODO implement setRegisterX
+setRegisterX bs cpu = setRegisterXHi (getHighByte bs) $ setRegisterXLo (getLowByte bs) cpu
 
 registerY : Cpu -> Bits 16
---TODO implement registerY
+registerY cpu = concatBits (registerYHi cpu) (registerYLo cpu)
 
-setRegisterY : Bits16 -> Cpu -> Cpu
---TODO implement setRegisterY
+setRegisterY : Bits 16 -> Cpu -> Cpu
+setRegisterY bs cpu = setRegisterYHi (getHighByte bs) $ setRegisterYLo (getLowByte bs) cpu
 
 data AddressModifier = NoneModifiedAddress | CpuModifiedAddress | PpuModifiedAddress
 
@@ -117,9 +156,6 @@ getAddressHistory bs adr = hstr ++ getAddressHistory bs adrn
               hstr : List (Bits 8, AddressModifier)
               hstr = if adrs == bs then [(dta, mod)] else []
 
-interface Assemblable a (n : Nat) where
-          assemble : a -> Bits n
-
 record Instruction (length : Nat) where
        constructor MkInstruction
        opcode             : Bits 8
@@ -127,23 +163,3 @@ record Instruction (length : Nat) where
        cpuAction          : Cpu -> Cpu
        addressSpaceAction : AddressSpace -> AddressSpace
 
-
-
-
--- | a is invariant on property c of b
-InvarianceProof : Type -> Type -> Type -> Type
-InvarianceProof a b c = (t1 : a) -> (t2 : b) -> (act : (a -> b -> b)) -> (prp : (b -> c)) -> (prp (act t1 t2) = (prp t2))
-
--- | an instruction of length n is invariant on property t of a cpu
-InstructionInvariantOnCpuProperty : Nat -> Type -> Type
-InstructionInvariantOnCpuProperty n t = InvarianceProof (Instruction n) Cpu t
-
--- | NOTE this is not how inc should be implemented I'm just testing theorem proving.
---inc : Instruction 0
---inc = MkInstruction 0 0 (\cpu -> )
-
-
-
--- Assemblable Instruction (length : Nat) where
---            assemble instr = (opcode instr)
- 
