@@ -22,19 +22,17 @@ concatBits {n} {m} bh bl = or bhnew blnew
            bhnew : Bits (n + m)
            bhnew = shiftLeft bhext shift
 
--- TODO clean this up.
-getLowByte : Bits 16 -> Bits 8
-getLowByte bs = nnbs 8
-           where
-           bsInt  : Integer
-           bsInt  = bitsToInt bs
-           nbs    : (m : Nat) -> Bits (m + 8)
-           nbs m  = intToBits bsInt
-           nnbs   : Nat -> Bits 8
-           nnbs m = truncate (nbs m)
+getLowByte : (h : Nat) -> (l : Nat) -> Bits (h + l) -> Bits l
+getLowByte h l bs = truncate bs
 
-getHighByte : Bits 16 -> Bits 8
-getHighByte bs = getLowByte $ shiftRightLogical bs (intToBits 8)
+getHighByte : (h : Nat) -> (l : Nat) -> Bits (h + l) -> Bits h
+getHighByte h l bs = getLowByte l h $ shiftRightLogical (commuteLength bs) (MkBits (natToBits l))
+
+getLowByte16 : Bits 16 -> Bits 8
+getLowByte16 bs = getLowByte 8 8 bs
+
+getHighByte16 : Bits 16 -> Bits 8
+getHighByte16 bs = getHighByte 8 8 bs
 
 -- | END Bits Utilities
 
@@ -116,19 +114,19 @@ registerC : Cpu -> Bits 16
 registerC cpu = concatBits (registerA cpu) (registerB cpu)
 
 setRegisterC : Bits 16 -> Cpu -> Cpu
-setRegisterC bs cpu = setRegisterA (getHighByte bs) $ setRegisterB (getLowByte bs) cpu
+setRegisterC bs cpu = setRegisterA (getHighByte16 bs) $ setRegisterB (getLowByte16 bs) cpu
 
 registerX : Cpu -> Bits 16
 registerX cpu = concatBits (registerXHi cpu) (registerXLo cpu)
 
 setRegisterX : Bits 16 -> Cpu -> Cpu
-setRegisterX bs cpu = setRegisterXHi (getHighByte bs) $ setRegisterXLo (getLowByte bs) cpu
+setRegisterX bs cpu = setRegisterXHi (getHighByte16 bs) $ setRegisterXLo (getLowByte16 bs) cpu
 
 registerY : Cpu -> Bits 16
 registerY cpu = concatBits (registerYHi cpu) (registerYLo cpu)
 
 setRegisterY : Bits 16 -> Cpu -> Cpu
-setRegisterY bs cpu = setRegisterYHi (getHighByte bs) $ setRegisterYLo (getLowByte bs) cpu
+setRegisterY bs cpu = setRegisterYHi (getHighByte16 bs) $ setRegisterYLo (getLowByte16 bs) cpu
 
 data AddressModifier = NoneModifiedAddress | CpuModifiedAddress | PpuModifiedAddress
 
@@ -162,4 +160,5 @@ record Instruction (length : Nat) where
        parameter          : Bits (8*length)
        cpuAction          : Cpu -> Cpu
        addressSpaceAction : AddressSpace -> AddressSpace
+
 
